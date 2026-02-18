@@ -219,16 +219,18 @@ fn complete_line<H: Helper, P: Prompt + ?Sized>(
 
                 let (tx_item, rx_item): (SkimItemSender, SkimItemReceiver) = unbounded();
 
-                candidates
-                    .iter()
-                    .enumerate()
-                    .map(|(i, c)| Candidate {
-                        index: i,
-                        text: c.display().to_owned(),
-                    })
-                    .for_each(|c| {
-                        let _ = tx_item.send(std::sync::Arc::new(c));
-                    });
+                let _ = tx_item.send(
+                    candidates
+                        .iter()
+                        .enumerate()
+                        .map(|(i, c)| -> std::sync::Arc<dyn SkimItem> {
+                            std::sync::Arc::new(Candidate {
+                                index: i,
+                                text: c.display().to_owned(),
+                            })
+                        })
+                        .collect(),
+                );
                 drop(tx_item); // so that skim could know when to stop waiting for more items.
 
                 // setup skim and run with input options
@@ -236,12 +238,12 @@ fn complete_line<H: Helper, P: Prompt + ?Sized>(
                 // by default skim multi select is off so only expect one selection
 
                 let options = SkimOptionsBuilder::default()
-                    .prompt(Some("? "))
+                    .prompt("? ")
                     .reverse(true)
                     .build()
                     .unwrap();
 
-                let selected_items = Skim::run_with(&options, Some(rx_item))
+                let selected_items = Skim::run_with(options, Some(rx_item))
                     .map(|out| out.selected_items)
                     .unwrap_or_default();
 
